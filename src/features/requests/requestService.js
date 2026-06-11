@@ -10,6 +10,7 @@ import {
   serverTimestamp,
   updateDoc,
   where,
+  runTransaction // 🌟 NEW: Imported runTransaction for atomic operations
 } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { db, storage } from "@/services/firebase/config";
@@ -67,56 +68,131 @@ export async function getRequestById(id) {
 }
 
 /**
- * Handles the Acceptance logic
+ * 🌟 UPGRADED: Atomic Acceptance
+ * Handles the Acceptance logic and prevents double-booking race conditions
  * Records WHICH Donor is stepping up to fulfill the request
  * Status: open -> fulfilled
  */
 export async function acceptRequest(id, donorId, donorName, donorPhone) {
   const requestRef = doc(db, "requests", id);
-  await updateDoc(requestRef, {
-    status: "fulfilled", 
-    donorId, 
-    donorName,  
-    donorPhone, 
-    acceptedAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
+
+  await runTransaction(db, async (transaction) => {
+    const docSnap = await transaction.get(requestRef);
+    
+    if (!docSnap.exists()) {
+      throw new Error("This request no longer exists.");
+    }
+
+    // 🛑 CRITICAL CHECK: Make sure it's actually still open!
+    if (docSnap.data().status !== "open") {
+      throw new Error("Too late! Someone else already offered to fulfill this request.");
+    }
+
+    // If safe, execute the write atomically
+    transaction.update(requestRef, {
+      status: "fulfilled", 
+      donorId, 
+      donorName,  
+      donorPhone, 
+      acceptedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
   });
 }
 
 /**
- * Step 3: Requester confirms they have received the food
+ * 🌟 UPGRADED: Atomic Collection
+ * Step 3: Requester confirms they have received the food (MANUAL FALLBACK)
  * Status: fulfilled -> collected
  */
 export async function markAsCollected(id, currentUserId) {
   const requestRef = doc(db, "requests", id);
-  const snap = await getDoc(requestRef);
-  
-  if (snap.data().requesterId !== currentUserId) {
-    throw new Error("Only the requester can mark this as collected.");
-  }
 
-  await updateDoc(requestRef, {
-    status: "collected",
-    collectedAt: serverTimestamp(),
+  await runTransaction(db, async (transaction) => {
+    const docSnap = await transaction.get(requestRef);
+    
+    if (!docSnap.exists()) {
+      throw new Error("Request not found.");
+    }
+    
+    // Security check remains the same
+    if (docSnap.data().requesterId !== currentUserId) {
+      throw new Error("Only the requester can mark this as collected.");
+    }
+
+    if (docSnap.data().status !== "fulfilled") {
+      throw new Error("This request is not currently being fulfilled.");
+    }
+
+    transaction.update(requestRef, {
+      status: "collected",
+      collectedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
   });
 }
 
 /**
- * Step 4: Donor confirms the handover is total
+ * 🌟 UPGRADED: Atomic Completion
+ * Step 4: Donor confirms the handover is total (MANUAL FALLBACK)
  * Status: collected -> completed
  */
 export async function markAsCompleted(id, currentUserId) {
   const requestRef = doc(db, "requests", id);
-  const snap = await getDoc(requestRef);
-  
-  // SECURITY: Only the Donor who stepped up can finish the deal
-  if (snap.data().donorId !== currentUserId) {
-    throw new Error("Only the donor can complete this request.");
-  }
 
-  await updateDoc(requestRef, {
-    status: "completed",
-    completedAt: serverTimestamp(),
+  await runTransaction(db, async (transaction) => {
+    const docSnap = await transaction.get(requestRef);
+    
+    if (!docSnap.exists()) {
+      throw new Error("Request not found.");
+    }
+    
+    // SECURITY: Only the Donor who stepped up can finish the deal
+    if (docSnap.data().donorId !== currentUserId) {
+      throw new Error("Only the donor can complete this request.");
+    }
+
+    transaction.update(requestRef, {
+      status: "completed",
+      completedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  });
+}
+
+// 🌟 NEW: The Secure QR Handover Shortcut 🌟
+/**
+ * 🌟 UPGRADED: Atomic QR Completion
+ * Fast-tracks a request straight to "completed" via QR Mutual Consent
+ * Status: fulfilled -> completed
+ */
+export async function completeRequestViaQR(id, currentUserId) {
+  const requestRef = doc(db, "requests", id);
+
+  await runTransaction(db, async (transaction) => {
+    const docSnap = await transaction.get(requestRef);
+    
+    if (!docSnap.exists()) {
+      throw new Error("Request not found.");
+    }
+    
+    // SECURITY: Ensure the person who scanned the QR is actually the authorized requester
+    if (docSnap.data().requesterId !== currentUserId) {
+      throw new Error("Security Alert: Only the authorized requester can scan this QR code.");
+    }
+
+    if (docSnap.data().status !== "fulfilled") {
+      throw new Error("This request must be in 'Fulfilled' status to use the QR scanner.");
+    }
+
+    // We update both timestamps so your UI timeline lights up perfectly
+    transaction.update(requestRef, {
+      status: "completed",
+      collectedAt: serverTimestamp(), 
+      completedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      handoverMethod: "QR_SCAN" // Adds a great audit trail for your database!
+    });
   });
 }
 
@@ -141,18 +217,28 @@ export async function getUserFulfillments(uid) {
 }
 
 /**
+ * 🌟 UPGRADED: Atomic Un-fulfill
  * Donor cancels their commitment to provide food
  * Resets status to open and removes donor data
  */
 export async function releaseFulfillment(id) {
   const requestRef = doc(db, "requests", id);
-  await updateDoc(requestRef, {
-    status: "open",
-    donorId: null,
-    donorName: null,
-    donorPhone: null,
-    acceptedAt: null,
-    updatedAt: serverTimestamp(),
+
+  await runTransaction(db, async (transaction) => {
+    const docSnap = await transaction.get(requestRef);
+    
+    if (!docSnap.exists()) {
+      throw new Error("Request not found.");
+    }
+
+    transaction.update(requestRef, {
+      status: "open",
+      donorId: null,
+      donorName: null,
+      donorPhone: null,
+      acceptedAt: null,
+      updatedAt: serverTimestamp(),
+    });
   });
 }
 
@@ -191,3 +277,26 @@ export async function expireRequest(id) {
     updatedAt: serverTimestamp(),
   });
 }
+
+/**
+ * ADMIN ONLY: Performs a soft-delete on a request.
+ * Changes status to 'removed' so it disappears from the app
+ * but remains in the DB for audit/moderation records.
+ */
+export const adminRemoveRequest = async (requestId) => {
+  try {
+    const requestRef = doc(db, "requests", requestId);
+    
+    await updateDoc(requestRef, {
+      status: "removed",
+      removedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      moderatedBy: "admin" // Useful for your logs!
+    });
+
+    return true;
+  } catch (error) {
+    console.error("Error in adminRemoveRequest:", error);
+    throw new Error("Failed to remove request. Please check admin permissions.");
+  }
+};

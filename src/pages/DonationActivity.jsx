@@ -6,7 +6,15 @@ import { useAuth } from "@/features/auth/useAuth";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Loader2, PackageOpen, MapPin, Calendar } from "lucide-react";
+import { 
+  ArrowLeft, 
+  Loader2, 
+  PackageOpen, 
+  MapPin, 
+  Calendar,
+  Star,
+  Trophy 
+} from "lucide-react";
 
 // --- HELPER: Format Date and Time ---
 const formatDateTime = (timestamp) => {
@@ -28,8 +36,10 @@ export default function DonationActivity() {
   
   const [activeTab, setActiveTab] = useState("donations"); 
   const [subFilter, setSubFilter] = useState("all"); 
+  
   const [myDonations, setMyDonations] = useState([]);
   const [myRescues, setMyRescues] = useState([]);
+  const [reviewedIds, setReviewedIds] = useState(new Set()); 
   const [loading, setLoading] = useState(true);
 
   // REAL-TIME LISTENERS
@@ -37,6 +47,7 @@ export default function DonationActivity() {
     if (!user) return;
     setLoading(true);
 
+    // 1. Fetch Donations I created
     const qDonations = query(collection(db, "donations"), where("donorId", "==", user.uid));
     const unsubDonations = onSnapshot(qDonations, (snapshot) => {
       const results = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -48,6 +59,7 @@ export default function DonationActivity() {
       setMyDonations(sorted);
     });
 
+    // 2. Fetch Donations I rescued
     const qRescues = query(collection(db, "donations"), where("recipientId", "==", user.uid));
     const unsubRescues = onSnapshot(qRescues, (snapshot) => {
       const results = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -57,12 +69,20 @@ export default function DonationActivity() {
         return timeB - timeA;
       });
       setMyRescues(sorted);
+    });
+
+    // 3. Fetch Reviews I have written
+    const qReviews = query(collection(db, "reviews"), where("reviewerId", "==", user.uid));
+    const unsubReviews = onSnapshot(qReviews, (snapshot) => {
+      const ids = new Set(snapshot.docs.map(doc => doc.data().donationId).filter(Boolean));
+      setReviewedIds(ids);
       setLoading(false); 
     });
 
     return () => {
       unsubDonations();
       unsubRescues();
+      unsubReviews();
     };
   }, [user]);
 
@@ -79,9 +99,15 @@ export default function DonationActivity() {
     return item.status;
   };
 
-  const filteredItems = activeTab === "donations" 
-    ? myDonations.filter(item => subFilter === "all" ? true : getDisplayStatus(item) === subFilter)
-    : myRescues.filter(item => subFilter === "all" ? true : getDisplayStatus(item) === subFilter);
+  const filteredItems = (activeTab === "donations" ? myDonations : myRescues).filter(item => {
+    const displayStatus = getDisplayStatus(item);
+    
+    if (subFilter === "all") return true;
+    if (subFilter === "to review") {
+      return displayStatus === "completed" && !reviewedIds.has(item.id);
+    }
+    return displayStatus === subFilter;
+  });
 
   const getStatusColor = (status) => {
     switch(status) {
@@ -97,25 +123,31 @@ export default function DonationActivity() {
 
   const renderFilterChips = () => {
     const filters = activeTab === "donations" 
-      ? ["all", "available", "reserved", "collected", "completed", "expired", "cancelled"] 
-      : ["all", "reserved", "collected", "completed"]; 
+      ? ["all", "available", "reserved", "collected", "completed", "to review", "expired", "cancelled"] 
+      : ["all", "reserved", "collected", "completed", "to review", "expired"]; 
 
     return (
-      // Added md:justify-center to center the chips on a laptop
       <div className="flex gap-2 overflow-x-auto pb-4 scrollbar-hide md:justify-center">
-        {filters.map((f) => (
-          <button
-            key={f}
-            onClick={() => setSubFilter(f)}
-            className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap border transition-all ${
-              subFilter === f 
-                ? "bg-violet-600 border-violet-600 text-white shadow-md shadow-violet-200" 
-                : "bg-white border-slate-200 text-slate-500 hover:border-violet-300"
-            }`}
-          >
-            {f === "reserved" && activeTab === "rescues" ? "TO BE COLLECTED" : f.toUpperCase()}
-          </button>
-        ))}
+        {filters.map((f) => {
+          const isActive = subFilter === f;
+          
+          // Uniform styling for all chips, including "to review"
+          const btnClass = isActive 
+            ? "bg-violet-600 border-violet-600 text-white shadow-md shadow-violet-200" 
+            : "bg-white border-slate-200 text-slate-500 hover:border-violet-300";
+
+          return (
+            <button
+              key={f}
+              onClick={() => setSubFilter(f)}
+              className={`px-4 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap border transition-all flex items-center gap-1 ${btnClass}`}
+            >
+              {f === "reserved" && activeTab === "rescues" ? "TO BE COLLECTED" : 
+               f === "expired" && activeTab === "rescues" ? "MISSED" :
+               f.toUpperCase()}
+            </button>
+          )
+        })}
       </div>
     );
   };
@@ -133,17 +165,18 @@ export default function DonationActivity() {
     }
 
     return (
-      // Grid container for responsive cards
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-2">
         {items.map(item => {
           const displayStatus = getDisplayStatus(item);
           const isInactive = displayStatus === "cancelled" || displayStatus === "expired";
+          
+          // Check if this item needs a review
+          const needsReview = displayStatus === "completed" && !reviewedIds.has(item.id);
 
           return (
             <Link 
               to={`/donations/${item.id}`} 
               key={item.id}
-              // Added h-full and flex-col for uniform card heights
               className={`flex flex-col h-full p-4 bg-white rounded-2xl border shadow-sm hover:border-violet-300 hover:shadow-md transition-all active:scale-[0.98] overflow-hidden ${
                 isInactive ? "opacity-75 border-slate-100" : "border-slate-100"
               }`}
@@ -166,16 +199,23 @@ export default function DonationActivity() {
                 </div>
               </div>
 
-              {/* mt-auto pushes the footer to the bottom so grid cards align perfectly */}
               <div className="mt-auto pt-3 border-t border-slate-50 flex items-center justify-between">
                 <div className="flex items-center text-slate-400 text-[10px] font-medium uppercase tracking-tight">
                   <Calendar className="w-2.5 h-2.5 mr-1" />
                   {formatDateTime(item.createdAt)}
                 </div>
                 
-                <Badge className={`w-fit border-none px-2 py-0.5 text-[10px] font-black rounded shadow-sm ${getStatusColor(displayStatus)}`}>
-                  {displayStatus === "reserved" && activeTab === "rescues" ? "RESERVED" : displayStatus.toUpperCase()}
-                </Badge>
+                {/* 🌟 DYNAMIC BADGE LOGIC (Kept the yellow star styling here) */}
+                {needsReview ? (
+                  <Badge className="w-fit border px-2 py-0.5 text-[9px] font-black rounded shadow-sm bg-white text-amber-600 border-amber-400 flex items-center gap-1 animate-in zoom-in duration-300">
+                    <Star className="w-2.5 h-2.5 fill-current" /> LEAVE REVIEW
+                  </Badge>
+                ) : (
+                  <Badge className={`w-fit border-none px-2 py-0.5 text-[9px] font-black rounded shadow-sm ${getStatusColor(displayStatus)}`}>
+                    {displayStatus === "reserved" && activeTab === "rescues" ? "RESERVED" : displayStatus.toUpperCase()}
+                  </Badge>
+                )}
+                
               </div>
             </Link>
           );
@@ -185,20 +225,31 @@ export default function DonationActivity() {
   };
 
   return (
-    // Expanded max-w for laptops
     <div className="mx-auto max-w-screen-xl pb-24 relative min-h-screen bg-slate-50 overflow-x-hidden md:pt-6">
       
-      {/* Header */}
-      <div className="sticky top-0 z-30 flex items-center bg-white/80 md:bg-transparent px-4 py-3 backdrop-blur-md border-b md:border-none md:mb-2">
-        <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="rounded-full mr-2 md:bg-white md:border md:border-slate-200 md:shadow-sm hover:bg-slate-100 transition-all">
-          <ArrowLeft className="w-5 h-5" />
+      {/* 🌟 HEADER */}
+      <div className="sticky top-0 z-30 flex items-center justify-between bg-white/80 md:bg-transparent px-4 py-3 backdrop-blur-md border-b md:border-none md:mb-2">
+        <div className="flex items-center">
+          <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="rounded-full mr-2 md:bg-white md:border md:border-slate-200 md:shadow-sm hover:bg-slate-100 transition-all">
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
+          <h1 className="font-bold text-slate-900 text-lg md:text-2xl">Donation Activity</h1>
+        </div>
+
+        <Button 
+          variant="outline" 
+          size="sm"
+          onClick={() => navigate("/profile/reviews")}
+          className="rounded-full bg-white border-violet-200 text-violet-700 font-bold hover:bg-violet-50 text-[11px] md:text-xs h-8 px-3 shadow-sm"
+        >
+          <Trophy className="w-3.5 h-3.5 mr-1.5" />
+          My Reputation
         </Button>
-        <h1 className="font-bold text-slate-900 text-lg md:text-2xl">Donation Activity</h1>
       </div>
 
       <div className="px-4 md:px-8 py-6">
         
-        {/* Main Tabs - Centered with max-w-md and mx-auto */}
+        {/* Main Tabs */}
         <div className="flex p-1 bg-slate-200/60 rounded-xl mb-6 shadow-inner md:max-w-md mx-auto">
           <button
             onClick={() => handleTabChange("donations")}

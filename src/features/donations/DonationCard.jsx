@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Clock, User, Timer, Navigation } from "lucide-react";
+import { MapPin, Clock, User, Timer, Navigation, Sparkles, Star } from "lucide-react";
 import { calculateDistance } from "@/utils/distance";
 
 // --- HELPERS ---
@@ -90,6 +90,20 @@ export default function DonationCard({ donation, userLocation }) {
         
         {donation.imageURLs?.length > 0 ? (
           <div className="relative h-56 w-full bg-slate-100 shrink-0">
+            {/* 🌟 NEW: MATCH SCORE BADGE (Top Left) */}
+            {donation.matchScore > 0 && (
+              <div className="absolute top-3 left-3 z-10">
+                <div className="bg-white/80 backdrop-blur-md border border-white/50 shadow-sm px-2 py-1 rounded-full flex items-center justify-center gap-1.5 w-[92px] h-[22px] animate-in fade-in zoom-in duration-500">
+                  
+                  <Star className="w-3 h-3 text-violet-600 fill-violet-600/20 shrink-0" />
+
+                  <span className="text-[10px] font-bold tracking-tight text-violet-700 uppercase tabular-nums whitespace-nowrap">
+                    {donation.matchScore}% Match
+                  </span>
+                </div>
+              </div>
+            )}
+
             <div className="flex w-full h-full overflow-x-auto snap-x snap-mandatory scrollbar-hide">
               {donation.imageURLs.map((url, index) => (
                 <div key={index} className="w-full h-full flex-shrink-0 snap-center relative">
@@ -123,14 +137,27 @@ export default function DonationCard({ donation, userLocation }) {
             )}
           </div>
         ) : (
-          <div className="h-16 w-full bg-violet-50 flex items-center justify-between px-5 border-b border-violet-100 shrink-0">
+          <div className="h-16 w-full bg-violet-50 flex items-center justify-between px-5 border-b border-violet-100 shrink-0 relative">
+            {/* 🌟 NEW: MATCH SCORE BADGE (Even if no image) */}
+            {donation.matchScore > 0 && (
+              <div className="bg-white text-violet-700 px-2.5 py-1 rounded-full shadow-sm border border-violet-100 flex items-center gap-1.5">
+                <Star className="w-3 h-3 text-violet-600 fill-violet-600/20 shrink-0" />
+                <span className="text-[10px] font-extrabold tracking-tight uppercase tabular-nums">
+                  {donation.matchScore}% Match
+                </span>
+              </div>
+            )}
+
              <Badge className={`${getStatusColor(donation.status)} hover:opacity-80 border-none shadow-sm uppercase font-bold`}>
                {donation.status}
              </Badge>
           </div>
         )}
 
-        <Link to={`/donations/${donation.id}`} className="flex flex-col flex-1">
+        <Link 
+          to={`/donations/${donation.id}`} 
+          className="flex flex-col flex-1"
+        >
           <CardContent className="px-5 pb-5 pt-2 flex flex-col flex-1">
             
             <div className="flex items-center text-[10px] font-bold text-slate-400 uppercase tracking-widest -mb-2">
@@ -140,7 +167,6 @@ export default function DonationCard({ donation, userLocation }) {
 
             <div className="space-y-1 mt-4">
               <div className="flex justify-between items-start gap-2">
-                {/* Allowed title to wrap up to 2 lines if needed */}
                 <h3 className="text-lg font-bold text-slate-900 leading-tight group-hover:text-violet-700 transition-colors line-clamp-2">
                   {donation.foodName}
                 </h3>
@@ -153,7 +179,6 @@ export default function DonationCard({ donation, userLocation }) {
               )}
             </div>
 
-            {/* RESTORED: Shows ALL tags and lets them wrap naturally */}
             {donation.foodTags?.length > 0 && (
               <div className="flex flex-wrap gap-1.5 mt-3">
                 {donation.foodTags.map((tag) => (
@@ -166,7 +191,6 @@ export default function DonationCard({ donation, userLocation }) {
 
             <div className="mt-auto pt-4 border-t border-slate-100 grid gap-2 text-xs text-slate-600">
               
-              {/* RESTORED: Full Expiry date + Time left, allowed to wrap if needed */}
               <div className="flex items-start gap-2">
                 <Clock className={`w-3.5 h-3.5 shrink-0 mt-0.5 ${urgency.iconColor}`} />
                 <span className="flex flex-wrap items-center gap-x-1.5 leading-snug">
@@ -179,7 +203,6 @@ export default function DonationCard({ donation, userLocation }) {
                 </span>
               </div>
 
-              {/* RESTORED: Full Address, allowed to wrap to multiple lines naturally */}
               <div className="flex items-start gap-2">
                 <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1 w-full">

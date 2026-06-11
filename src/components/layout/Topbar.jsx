@@ -1,15 +1,16 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+// 🛑 NEW: Imported NavLink instead of Link for active states
+import { NavLink, Link } from "react-router-dom";
 import { useAuth } from "@/features/auth/useAuth"; 
 import { getUserProfile } from "@/features/users/userService"; 
 
 import logo from "@/assets/logo.png"; 
+import NotificationBell from "@/components/layout/NotificationBell"; // 🌟 NEW: Import the Bell!
 
 export default function Topbar() {
-  const { user } = useAuth(); 
+  const { user, isAdmin } = useAuth(); // 🛑 NEW: Grab isAdmin from context
   const [profile, setProfile] = useState(null);
 
-  // This grabs your custom Firestore details (like fullName) when the user logs in
   useEffect(() => {
     async function loadProfile() {
       if (user?.uid) {
@@ -25,6 +26,14 @@ export default function Topbar() {
     }
     loadProfile();
   }, [user]);
+
+  // 🛑 NEW: Helper function to handle active link styling
+  const navLinkClass = ({ isActive }) => 
+    `transition-colors font-bold ${
+      isActive 
+        ? "text-violet-600 underline underline-offset-8 decoration-2" 
+        : "text-slate-600 hover:text-violet-600"
+    }`;
 
   return (
     <header className="sticky top-0 z-40 border-b bg-white/80 backdrop-blur">
@@ -46,38 +55,50 @@ export default function Topbar() {
         {/* Right Side: Navigation & User Profile */}
         <div className="flex items-center gap-4">
           
-          {/* Desktop Navigation */}
           <nav className="hidden items-center gap-6 text-sm md:flex font-medium mr-4">
-            <Link to="/" className="text-slate-600 hover:text-violet-600 transition-colors">
+            {/* 🛑 NEW: Using NavLink with the style helper */}
+            <NavLink to="/" end className={navLinkClass}>
               Home
-            </Link>
+            </NavLink>
             
             {user && (
               <>
-                <Link to="/donations" className="text-slate-600 hover:text-violet-600 transition-colors">
+                <NavLink to="/donations" className={navLinkClass}>
                   Donations
-                </Link>
-                {/* NEW: Requests Link added here */}
-                <Link to="/requests" className="text-slate-600 hover:text-violet-600 transition-colors">
+                </NavLink>
+                <NavLink to="/requests" className={navLinkClass}>
                   Requests
-                </Link>
+                </NavLink>
+
+                {/* 🛑 NEW: Admin Link (Only shows for Admins) */}
+                {isAdmin && (
+                  <NavLink to="/admin/dashboard" className={navLinkClass}>
+                    Admin Dashboard
+                  </NavLink>
+                )}
               </>
             )}
 
             {!user && (
-              <Link to="/login" className="text-slate-600 hover:text-violet-600 transition-colors">
+              <NavLink to="/login" className={navLinkClass}>
                 Login
-              </Link>
+              </NavLink>
             )}
           </nav>
+
+          {/* 🌟 NEW: The Notification Bell (Only shows if logged in) */}
+          {user && (
+            <div className="mr-1 md:mr-2 flex items-center">
+              <NotificationBell />
+            </div>
+          )}
 
           {/* User Profile Indicator */}
           {user && (
             <Link 
               to="/profile" 
-              className="flex items-center gap-3 p-1 pr-3 rounded-full border border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors"
+              className="flex items-center gap-3 p-1 pr-3 rounded-full border border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors shrink-0"
             >
-              {/* Avatar Image or Fallback using the fetched 'profile' */}
               {profile?.photoURL ? (
                 <img 
                   src={profile.photoURL} 
@@ -86,20 +107,16 @@ export default function Topbar() {
                 />
               ) : (
                 <div className="w-8 h-8 rounded-full bg-violet-100 flex items-center justify-center text-violet-600 font-bold">
-                  {/* Safely get the first letter of their fullName */}
                   {profile?.fullName ? profile.fullName.charAt(0).toUpperCase() : "U"}
                 </div>
               )}
               
-              {/* Show their full name from Firestore */}
-              <span className="text-sm font-bold text-slate-700 hidden sm:block w-full max-w-[120px] truncate">
+              <span className="text-sm font-bold text-slate-700 hidden sm:block max-w-[120px] truncate">
                 {profile?.fullName || "Loading..."}
               </span>
             </Link>
           )}
-
         </div>
-
       </div>
     </header>
   );

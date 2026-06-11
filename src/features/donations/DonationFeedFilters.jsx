@@ -29,7 +29,7 @@ export default function DonationFeedFilters({
     (maxDistance < 50000 ? 1 : 0) + 
     (expiryFilter !== "all" ? 1 : 0) + 
     (minQuantity > 1 ? 1 : 0) +
-    (sortBy !== "expiring_soon" ? 1 : 0) +
+    (sortBy !== "best_match" ? 1 : 0) +
     (selectedTags.length > 0 ? 1 : 0); // Include dietary tags in the count!
 
   // NEW: Instantly reset everything back to default values
@@ -39,7 +39,7 @@ export default function DonationFeedFilters({
     setSelectedTags([]);
     setMaxDistance(50000);
     setMinQuantity(1);
-    setSortBy("expiring_soon");
+    setSortBy("best_match");
     setExpiryFilter("all");
   };
 
@@ -131,6 +131,7 @@ export default function DonationFeedFilters({
                 <option value="newest">Newest First</option>
                 <option value="expiring_soon">Expiring Soonest</option>
                 <option value="nearest">Nearest First</option>
+                <option value="best_match">Best Match</option>
               </select>
             </div>
 

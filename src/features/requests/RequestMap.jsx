@@ -2,7 +2,7 @@ import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from "@react-google-map
 import { useState, useMemo, useRef, useCallback, useEffect } from "react"; 
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Loader2, Navigation, Clock, X, ShoppingBag } from "lucide-react"; // <-- Added ShoppingBag
+import { Loader2, Navigation, Clock, X, ShoppingBag, MapPinOff } from "lucide-react"; // <-- Added ShoppingBag
 
 const libraries = ["places"];
 
@@ -157,6 +157,25 @@ export default function RequestMap({ requests, userLocation }) {
           <div className="w-3 h-3 rounded-full bg-emerald-500"></div> 24+ Hours
         </div>
       </div>
+
+      {/* 🌟 NEW: MISSING LOCATION PROMPT */}
+      {!userLocation && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 animate-in fade-in slide-in-from-top-4 duration-500 pointer-events-none flex justify-center w-full">
+          
+          {/* Notice the w-max and whitespace-nowrap here */}
+          <div className="bg-amber-50/95 backdrop-blur-md border border-amber-200 shadow-lg px-4 py-2 rounded-full flex items-center gap-2 w-max whitespace-nowrap">
+            
+            <div className="bg-amber-100 p-1 rounded-full shrink-0">
+              <MapPinOff className="w-3.5 h-3.5 text-amber-600" />
+            </div>
+            
+            <span className="text-[11px] md:text-xs font-bold text-amber-800 tracking-tight">
+              Enable device location for precise local results
+            </span>
+            
+          </div>
+        </div>
+      )}
 
       <GoogleMap
         mapContainerStyle={mapContainerStyle}

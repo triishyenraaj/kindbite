@@ -107,13 +107,37 @@ export default function Onboarding() {
     e.preventDefault();
     setError("");
 
+    // 1. Basic Empty Check
     if (!form.fullName || !form.phone || !form.address) {
-      setError("Please fill in full name, phone number, and address.");
+      setError("Please fill in your full name, phone number, and address.");
       return;
     }
 
+    // 2. Name Length Check
+    if (form.fullName.trim().length < 3) {
+      setError("Please enter a valid full name.");
+      return;
+    }
+
+    // 3. Smart Phone Number Check (Forgiving of spaces and dashes)
+    const cleanPhone = form.phone.replace(/[-+ ]/g, ""); // Removes dashes, plus signs, and spaces
+    if (cleanPhone.length < 9 || !/^\d+$/.test(cleanPhone)) {
+      setError("Please enter a valid phone number (e.g., 011-12345678).");
+      return;
+    }
+
+    // 4. Map Location Check
     if (!form.latitude || !form.longitude) {
       setError("Please select a valid location from the map dropdown.");
+      return;
+    }
+
+    // 5. Strict Numbers Check (Catches 0, negatives, and empty inputs)
+    const finalRadius = Number(form.radiusKm);
+    const finalQuantity = Number(form.quantity);
+
+    if (finalRadius < 1 || finalQuantity < 1) {
+      setError("Radius and Typical Pax must be at least 1.");
       return;
     }
 
@@ -121,15 +145,15 @@ export default function Onboarding() {
       setSaving(true);
 
       await updateUserProfile(user.uid, {
-        fullName: form.fullName,
-        phone: form.phone,
+        fullName: form.fullName.trim(), // Trim spaces before saving
+        phone: form.phone.trim(),
         address: form.address,
         latitude: form.latitude,
         longitude: form.longitude,
         preferences: {
           foodTags: form.foodTags,
-          radiusKm: Number(form.radiusKm),
-          quantity: Number(form.quantity),
+          radiusKm: finalRadius,
+          quantity: finalQuantity,
         },
         profileCompleted: true,
       });

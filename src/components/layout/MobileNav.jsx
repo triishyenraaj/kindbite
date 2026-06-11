@@ -1,13 +1,18 @@
 import { useState } from "react";
-import { Home, User, HandPlatter, Megaphone, Plus, X, HeartHandshake, FilePlus } from "lucide-react";
+// 🌟 NEW: Imported ShieldCheck for the Admin icon
+import { Home, User, HandPlatter, Megaphone, Plus, X, HeartHandshake, FilePlus, ShieldCheck } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+// 🌟 NEW: Imported useAuth to check if the user is an admin
+import { useAuth } from "@/features/auth/useAuth";
 
 export default function MobileNav() {
   const location = useLocation();
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
+  
+  // 🌟 NEW: Get isAdmin status
+  const { isAdmin } = useAuth();
 
-  // 1. Updated Donation Icon to HandPlatter
   const leftItems = [
     { to: "/", label: "Home", icon: Home },
     { to: "/donations", label: "Donations", icon: HandPlatter },
@@ -51,19 +56,33 @@ export default function MobileNav() {
       <div className={`fixed bottom-28 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-4 transition-all duration-300 ease-out ${
         isOpen ? "translate-y-0 opacity-100 scale-100" : "translate-y-20 opacity-0 scale-90 pointer-events-none"
       }`}>
+        
+        {/* 🌟 NEW: Admin Dashboard Button (Only shows for Admins) */}
+        {isAdmin && (
+          <button
+            onClick={() => { navigate("/admin/dashboard"); setIsOpen(false); }}
+            className="flex items-center gap-3 bg-slate-900 px-6 py-4 rounded-2xl shadow-2xl border border-slate-800 active:scale-95 transition-transform w-full"
+          >
+            <div className="bg-slate-800 p-2 rounded-xl text-white">
+              <ShieldCheck size={22} />
+            </div>
+            <span className="text-sm font-black text-white pr-4">Admin Dashboard</span>
+          </button>
+        )}
+
         <button
           onClick={() => { navigate("/donations/new"); setIsOpen(false); }}
-          className="flex items-center gap-3 bg-white px-6 py-4 rounded-2xl shadow-2xl border border-slate-100 active:scale-95 transition-transform"
+          className="flex items-center gap-3 bg-white px-6 py-4 rounded-2xl shadow-2xl border border-slate-100 active:scale-95 transition-transform w-full"
         >
           <div className="bg-emerald-100 p-2 rounded-xl text-emerald-600">
             <HandPlatter size={22} />
           </div>
-          <span className="text-sm font-black text-slate-700">Give Food</span>
+          <span className="text-sm font-black text-slate-700 pr-4">Give Food</span>
         </button>
 
         <button
           onClick={() => { navigate("/requests/new"); setIsOpen(false); }}
-          className="flex items-center gap-3 bg-white px-6 py-4 rounded-2xl shadow-2xl border border-slate-100 active:scale-95 transition-transform"
+          className="flex items-center gap-3 bg-white px-6 py-4 rounded-2xl shadow-2xl border border-slate-100 active:scale-95 transition-transform w-full"
         >
           <div className="bg-violet-100 p-2 rounded-xl text-violet-600">
             <Megaphone size={22} />
@@ -81,7 +100,7 @@ export default function MobileNav() {
             {leftItems.map((item) => <NavItem key={item.to} item={item} />)}
           </div>
 
-          {/* CENTRAL ACTION BUTTON - Now Bigger (h-16 w-16) */}
+          {/* CENTRAL ACTION BUTTON */}
           <div className="relative -mt-12 px-2">
             <button
               onClick={() => setIsOpen(!isOpen)}

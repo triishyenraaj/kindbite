@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Clock, User, Timer, Navigation, ShoppingBag } from "lucide-react"; // Added ShoppingBag
+import { MapPin, Clock, User, Timer, Navigation, ShoppingBag, Users } from "lucide-react"; // 🛑 NEW: Added Users
 import { calculateDistance } from "@/utils/distance";
 
 // --- HELPERS ---
@@ -174,13 +174,27 @@ export default function RequestCard({ request, userLocation }) {
               )}
             </div>
 
+            {/* 🛑 NEW: Request Type tags now pop visually */}
             {request.foodTags?.length > 0 && (
               <div className="flex flex-wrap gap-1.5 mt-3">
-                {request.foodTags.map((tag) => (
-                  <Badge key={tag} variant="secondary" className="bg-slate-50 text-slate-600 text-[10px] font-medium border border-slate-100">
-                    {tag}
-                  </Badge>
-                ))}
+                {request.foodTags.map((tag) => {
+                  const isRequestType = tag === "Personal" || tag === "Community Aid";
+                  return (
+                    <Badge 
+                      key={tag} 
+                      variant="secondary" 
+                      className={
+                        isRequestType 
+                          ? "bg-violet-100 text-violet-800 text-[10px] font-bold border border-violet-200 flex items-center" 
+                          : "bg-slate-50 text-slate-600 text-[10px] font-medium border border-slate-100"
+                      }
+                    >
+                      {tag === "Personal" && <User className="w-2.5 h-2.5 mr-1" />}
+                      {tag === "Community Aid" && <Users className="w-2.5 h-2.5 mr-1" />}
+                      {tag}
+                    </Badge>
+                  );
+                })}
               </div>
             )}
 

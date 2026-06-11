@@ -17,7 +17,7 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ChevronDown, X, Loader2, ImagePlus } from "lucide-react";
+import { ChevronDown, X, Loader2, ImagePlus, User, Users } from "lucide-react"; // 🛑 NEW: Imported User and Users icons
 
 export default function RequestForm({ onCreated, initialData }) {
   const { user } = useAuth();
@@ -27,6 +27,7 @@ export default function RequestForm({ onCreated, initialData }) {
   const isEdit = !!initialData;
 
   const [form, setForm] = useState({
+    requestType: "Personal", // 🛑 NEW: Default to Personal
     foodName: "",
     description: "",
     foodType: "",
@@ -45,9 +46,14 @@ export default function RequestForm({ onCreated, initialData }) {
 
   useEffect(() => {
     if (initialData) {
+      // 🛑 NEW: Extract Request Type if editing an existing request
+      const tags = initialData.foodTags || [];
+      const isCommunity = tags.includes("Community Aid");
+      
       setForm({
         ...initialData,
-        selectedExtraTags: initialData.foodTags?.filter(tag => tag !== initialData.foodType) || [],
+        requestType: isCommunity ? "Community Aid" : "Personal",
+        selectedExtraTags: tags.filter(tag => tag !== initialData.foodType && tag !== "Personal" && tag !== "Community Aid") || [],
         files: [],
         existingImages: initialData.imageURLs || [],
       });
@@ -58,10 +64,11 @@ export default function RequestForm({ onCreated, initialData }) {
     return () => previews.forEach(url => URL.revokeObjectURL(url));
   }, [previews]);
 
+  // 🛑 NEW: Automatically bundle requestType into the tags array
   const combinedFoodTags = useMemo(() => {
-    const merged = [form.foodType, ...form.selectedExtraTags].filter(Boolean);
+    const merged = [form.requestType, form.foodType, ...form.selectedExtraTags].filter(Boolean);
     return [...new Set(merged)];
-  }, [form.foodType, form.selectedExtraTags]);
+  }, [form.requestType, form.foodType, form.selectedExtraTags]);
 
   function toggleTag(tag) {
     setForm((prev) => {
@@ -127,7 +134,7 @@ export default function RequestForm({ onCreated, initialData }) {
         foodName: form.foodName,
         description: form.description,
         foodType: form.foodType,
-        foodTags: combinedFoodTags,
+        foodTags: combinedFoodTags, // This now includes "Personal" or "Community Aid"!
         quantity: Number(form.quantity),
         quantityUnit: form.quantityUnit,
         expiryDateTime: form.expiryDateTime,
@@ -164,6 +171,40 @@ export default function RequestForm({ onCreated, initialData }) {
       <form onSubmit={handleSubmit} className="flex flex-col">
         <CardContent className="pt-6 space-y-5">
           
+          {/* 🛑 NEW: Request Type UI */}
+          <div className="space-y-3">
+            <Label className="font-semibold text-slate-400 text-xs uppercase tracking-wider">Step 1: Request Type</Label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setForm({ ...form, requestType: "Personal" })}
+                className={`flex flex-col items-center justify-center p-4 rounded-2xl border-2 transition-all ${
+                  form.requestType === "Personal" 
+                  ? "border-violet-600 bg-violet-50 text-violet-800 shadow-sm" 
+                  : "border-slate-200 bg-white text-slate-500 hover:border-violet-300"
+                }`}
+              >
+                <User className={`w-6 h-6 mb-2 ${form.requestType === "Personal" ? "text-violet-600" : "text-slate-400"}`} />
+                <span className="font-bold text-sm">Personal</span>
+                <span className="text-[10px] text-center mt-1 opacity-80 leading-tight">For myself or a family</span>
+              </button>
+              
+              <button
+                type="button"
+                onClick={() => setForm({ ...form, requestType: "Community Aid" })}
+                className={`flex flex-col items-center justify-center p-4 rounded-2xl border-2 transition-all ${
+                  form.requestType === "Community Aid" 
+                  ? "border-violet-600 bg-violet-50 text-violet-800 shadow-sm" 
+                  : "border-slate-200 bg-white text-slate-500 hover:border-violet-300"
+                }`}
+              >
+                <Users className={`w-6 h-6 mb-2 ${form.requestType === "Community Aid" ? "text-violet-600" : "text-slate-400"}`} />
+                <span className="font-bold text-sm">Community Aid</span>
+                <span className="text-[10px] text-center mt-1 opacity-80 leading-tight">For NGOs or groups</span>
+              </button>
+            </div>
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="foodName" className="font-semibold text-slate-700">Food Needed *</Label>
             <Input id="foodName" value={form.foodName} onChange={(e) => setForm({ ...form, foodName: e.target.value })} placeholder="e.g. Rice and Curry" className="bg-white rounded-xl h-11" />
@@ -253,29 +294,28 @@ export default function RequestForm({ onCreated, initialData }) {
 
           {/* RESPONSIVE TRICK 2: Group Quantity and Expiry side-by-side on laptop */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="quantity" className="font-semibold text-slate-700">Quantity Needed *</Label>
-                <Input id="quantity" type="number" min="1" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} className="bg-white rounded-xl h-11" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="quantityUnit" className="font-semibold text-slate-700">Unit</Label>
-                <div className="relative">
-                  <select id="quantityUnit" value={form.quantityUnit} onChange={(e) => setForm({ ...form, quantityUnit: e.target.value })} className="flex h-11 w-full rounded-xl border border-input bg-white px-3 py-2 text-sm appearance-none focus:ring-2 focus:ring-violet-500">
-                    <option value="pax">pax</option>
-                    <option value="items">items</option>
-                    <option value="packs">packs</option>
-                    <option value="kg">kg</option>
-                  </select>
-                  <ChevronDown className="absolute right-3 top-3.5 h-4 w-4 opacity-50 pointer-events-none" />
-                </div>
-              </div>
+            
+            {/* 🌟 MODIFIED: Quantity (Pax Only) layout */}
+            <div className="space-y-2">
+              <Label htmlFor="quantity" className="font-semibold text-slate-700">Quantity Needed (Pax) *</Label>
+              <Input 
+                id="quantity" 
+                type="number" 
+                min="1" 
+                value={form.quantity} 
+                onChange={(e) => setForm({ ...form, quantity: e.target.value })} 
+                className="bg-white rounded-xl h-11" 
+              />
+              <p className="text-[11px] text-slate-500 font-medium leading-tight pt-1">
+                Please indicate how many people (pax) this request is for.
+              </p>
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="expiryDateTime" className="font-semibold text-slate-700">Needed By (Date & Time) *</Label>
               <Input id="expiryDateTime" type="datetime-local" value={form.expiryDateTime} onChange={(e) => setForm({ ...form, expiryDateTime: e.target.value })} className="bg-white rounded-xl h-11" />
             </div>
+
           </div>
 
           <div className="space-y-2 pb-2">

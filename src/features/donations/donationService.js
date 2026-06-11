@@ -1,4 +1,3 @@
-// src/features/donations/donationService.js
 import {
   addDoc,
   collection,
@@ -10,6 +9,7 @@ import {
   serverTimestamp,
   updateDoc,
   where,
+  runTransaction // 🌟 NEW: Imported runTransaction for atomic operations
 } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { db, storage } from "@/services/firebase/config";
@@ -67,56 +67,128 @@ export async function getDonationById(id) {
 }
 
 /**
- * Handles the Reservation logic
- * Records WHICH user is reserving the food
+ * 🌟 UPGRADED: Atomic Reservation
+ * Handles the Reservation logic and prevents double-booking
  */
 export async function reserveDonation(id, recipientId, recipientName, recipientPhone) {
-  // Added recipientName and recipientPhone above ^
   const donationRef = doc(db, "donations", id);
-  await updateDoc(donationRef, {
-    status: "reserved",
-    recipientId, 
-    recipientName,  // Now these variables are defined!
-    recipientPhone, 
-    reservedAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
+
+  await runTransaction(db, async (transaction) => {
+    const docSnap = await transaction.get(donationRef);
+    
+    if (!docSnap.exists()) {
+      throw new Error("This donation no longer exists.");
+    }
+
+    // 🛑 CRITICAL CHECK: Make sure it's actually still available!
+    if (docSnap.data().status !== "available") {
+      throw new Error("Too late! Someone else just reserved this food.");
+    }
+
+    // If safe, execute the write
+    transaction.update(donationRef, {
+      status: "reserved",
+      recipientId, 
+      recipientName,  
+      recipientPhone, 
+      reservedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
   });
 }
 
 /**
- * Step 3: Recipient confirms they have the food
+ * 🌟 UPGRADED: Atomic Collection
+ * Step 3: Recipient confirms they have the food (MANUAL FALLBACK)
  * Status: reserved -> collected
  */
 export async function markAsCollected(id, currentUserId) {
   const donationRef = doc(db, "donations", id);
-  const snap = await getDoc(donationRef);
-  
-  if (snap.data().recipientId !== currentUserId) {
-    throw new Error("Only the recipient can mark this as collected.");
-  }
 
-  await updateDoc(donationRef, {
-    status: "collected",
-    collectedAt: serverTimestamp(),
+  await runTransaction(db, async (transaction) => {
+    const docSnap = await transaction.get(donationRef);
+    
+    if (!docSnap.exists()) {
+      throw new Error("Donation not found.");
+    }
+    
+    if (docSnap.data().recipientId !== currentUserId) {
+      throw new Error("Security Alert: Only the reserved recipient can collect this.");
+    }
+
+    if (docSnap.data().status !== "reserved") {
+      throw new Error("This food is not currently reserved.");
+    }
+
+    transaction.update(donationRef, {
+      status: "collected",
+      collectedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
   });
 }
 
 /**
- * Step 4: Donor confirms the handover is total
+ * 🌟 UPGRADED: Atomic Completion
+ * Step 4: Donor confirms the handover is total (MANUAL FALLBACK)
  * Status: collected -> completed
  */
 export async function markAsCompleted(id, currentUserId) {
   const donationRef = doc(db, "donations", id);
-  const snap = await getDoc(donationRef);
-  
-  // SECURITY: Only the person who POSTED the food can finish the deal
-  if (snap.data().donorId !== currentUserId) {
-    throw new Error("Only the donor can complete this donation.");
-  }
 
-  await updateDoc(donationRef, {
-    status: "completed",
-    completedAt: serverTimestamp(),
+  await runTransaction(db, async (transaction) => {
+    const docSnap = await transaction.get(donationRef);
+    
+    if (!docSnap.exists()) {
+      throw new Error("Donation not found.");
+    }
+    
+    // SECURITY: Only the person who POSTED the food can finish the deal manually
+    if (docSnap.data().donorId !== currentUserId) {
+      throw new Error("Security Alert: Only the donor can complete this donation manually.");
+    }
+
+    transaction.update(donationRef, {
+      status: "completed",
+      completedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  });
+}
+
+// 🌟 The Secure QR Handover Shortcut 🌟
+/**
+ * 🌟 UPGRADED: Atomic QR Completion
+ * Fast-tracks a donation straight to "completed" via QR Mutual Consent
+ * Status: reserved -> completed
+ */
+export async function completeViaQR(id, currentUserId) {
+  const donationRef = doc(db, "donations", id);
+
+  await runTransaction(db, async (transaction) => {
+    const docSnap = await transaction.get(donationRef);
+    
+    if (!docSnap.exists()) {
+      throw new Error("Donation not found.");
+    }
+    
+    // SECURITY: Ensure the person who scanned the QR is actually the authorized recipient
+    if (docSnap.data().recipientId !== currentUserId) {
+      throw new Error("Security Alert: Only the authorized recipient can scan this QR code.");
+    }
+
+    if (docSnap.data().status !== "reserved") {
+      throw new Error("This food must be in 'Reserved' status to use the QR scanner.");
+    }
+
+    // We update both timestamps so your UI timeline lights up perfectly
+    transaction.update(donationRef, {
+      status: "completed",
+      collectedAt: serverTimestamp(), 
+      completedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      handoverMethod: "QR_SCAN" // Adds a great audit trail for your database!
+    });
   });
 }
 
@@ -126,7 +198,6 @@ export async function markAsCompleted(id, currentUserId) {
 export async function getUserDonations(uid) {
   const q = query(collection(db, "donations"), where("donorId", "==", uid));
   const snapshot = await getDocs(q);
-  // Sort by newest first in JavaScript (prevents needing a complex Firestore Index)
   const results = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   return results.sort((a, b) => b.createdAt?.toMillis() - a.createdAt?.toMillis());
 }
@@ -142,18 +213,28 @@ export async function getUserRescues(uid) {
 }
 
 /**
+ * 🌟 UPGRADED: Atomic Un-reserve
  * Cancels a reservation
  * Resets status to available and removes recipient data
  */
 export async function unreserveDonation(id) {
   const donationRef = doc(db, "donations", id);
-  await updateDoc(donationRef, {
-    status: "available",
-    recipientId: null,
-    recipientName: null,
-    recipientPhone: null,
-    reservedAt: null,
-    updatedAt: serverTimestamp(),
+
+  await runTransaction(db, async (transaction) => {
+    const docSnap = await transaction.get(donationRef);
+    
+    if (!docSnap.exists()) {
+      throw new Error("Donation not found.");
+    }
+
+    transaction.update(donationRef, {
+      status: "available",
+      recipientId: null,
+      recipientName: null,
+      recipientPhone: null,
+      reservedAt: null,
+      updatedAt: serverTimestamp(),
+    });
   });
 }
 
@@ -192,3 +273,19 @@ export async function expireDonation(id) {
     updatedAt: serverTimestamp(),
   });
 }
+
+// 🛑 GOD MODE: Admin Soft Delete
+export const adminRemoveDonation = async (donationId) => {
+  try {
+    const docRef = doc(db, "donations", donationId);
+    await updateDoc(docRef, { 
+      status: "removed",
+      removedAt: new Date(), 
+      updatedAt: serverTimestamp(),
+      moderatedBy: "admin" 
+    });
+  } catch (error) {
+    console.error("Error removing donation:", error);
+    throw error;
+  }
+};

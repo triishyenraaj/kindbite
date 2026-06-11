@@ -2,7 +2,7 @@ import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from "@react-google-map
 import { useState, useMemo, useRef, useCallback, useEffect } from "react"; 
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Loader2, Navigation, Clock, X } from "lucide-react"; 
+import { Loader2, Navigation, Clock, X, Star, MapPinOff } from "lucide-react"; 
 
 const libraries = ["places"];
 
@@ -156,6 +156,25 @@ export default function DonationMap({ donations, userLocation }) {
         </div>
       </div>
 
+      {/* 🌟 NEW: MISSING LOCATION PROMPT */}
+      {!userLocation && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 animate-in fade-in slide-in-from-top-4 duration-500 pointer-events-none flex justify-center w-full">
+          
+          {/* Notice the w-max and whitespace-nowrap here */}
+          <div className="bg-amber-50/95 backdrop-blur-md border border-amber-200 shadow-lg px-4 py-2 rounded-full flex items-center gap-2 w-max whitespace-nowrap">
+            
+            <div className="bg-amber-100 p-1 rounded-full shrink-0">
+              <MapPinOff className="w-3.5 h-3.5 text-amber-600" />
+            </div>
+            
+            <span className="text-[11px] md:text-xs font-bold text-amber-800 tracking-tight">
+              Enable device location for precise local results
+            </span>
+            
+          </div>
+        </div>
+      )}
+
       <GoogleMap
         mapContainerStyle={mapContainerStyle}
         zoom={14}
@@ -206,6 +225,18 @@ export default function DonationMap({ donations, userLocation }) {
                   alt="Food"
                 />
 
+                {/* 🌟 NEW: MATCH SCORE BADGE (Top Left) */}
+                {selectedDonation.matchScore > 0 && (
+                  <div className="absolute top-2 left-2 z-10">
+                    <div className="bg-white/95 border border-white/50 shadow-md px-1.5 py-0.5 rounded-full flex items-center justify-center gap-1">
+                      <Star className="w-2.5 h-2.5 text-violet-600 fill-violet-600/20 shrink-0" />
+                      <span className="text-[10px] font-black tracking-tight text-violet-700 uppercase tabular-nums">
+                        {selectedDonation.matchScore}%
+                      </span>
+                    </div>
+                  </div>
+                )}
+
                 <button
                   onClick={() => setSelectedDonation(null)}
                   className="absolute top-2 right-2 z-50 p-1 bg-black/40 text-white rounded-full backdrop-blur-sm hover:bg-black/60 active:scale-95"
@@ -218,7 +249,8 @@ export default function DonationMap({ donations, userLocation }) {
                   if (status.label !== "URGENT" && status.label !== "EXPIRING SOON") return null;
 
                   return (
-                    <div className={`absolute top-2 left-2 px-2 py-0.5 rounded shadow-sm text-[9px] font-black text-white ${status.label === "URGENT" ? "bg-red-500 animate-pulse" : "bg-orange-500"}`}>
+                    // 🌟 MOVED TO BOTTOM-LEFT so it doesn't overlap with Match Score
+                    <div className={`absolute bottom-2 left-2 px-2 py-0.5 rounded shadow-sm text-[9px] font-black text-white ${status.label === "URGENT" ? "bg-red-500 animate-pulse" : "bg-orange-500"}`}>
                       {status.label}
                     </div>
                   );
@@ -240,6 +272,7 @@ export default function DonationMap({ donations, userLocation }) {
                   </p>
                 </div>
                 
+                {/* 🌟 THIS IS THE LINK TO THE DONATION DETAILS PAGE */}
                 <Button 
                   className="w-full h-8 bg-violet-600 hover:bg-violet-700 text-white text-[11px] font-bold rounded-lg shadow-sm"
                   onClick={() => navigate(`/donations/${selectedDonation.id}`)}

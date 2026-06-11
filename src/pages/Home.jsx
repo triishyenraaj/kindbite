@@ -1,11 +1,93 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/features/auth/useAuth";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "@/services/firebase/config";
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Utensils, MapPin, HandPlatter, ArrowRight, Heart, Sparkles } from "lucide-react";
+import { 
+  Utensils, 
+  MapPin, 
+  HandPlatter, 
+  ArrowRight, 
+  Heart, 
+  Sparkles,
+  Loader2,
+  Mail
+} from "lucide-react";
+
+// --- CUSTOM ANIMATION COMPONENT ---
+// Creates a smooth "count up" effect for the impact numbers
+const AnimatedCounter = ({ value, duration = 1500 }) => {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    let startTime = null;
+    let animationFrame;
+
+    const animate = (timestamp) => {
+      if (!startTime) startTime = timestamp;
+      const progress = timestamp - startTime;
+      const percentage = Math.min(progress / duration, 1);
+      
+      // Easing function (easeOutExpo) for a fast start and slow finish
+      const ease = percentage === 1 ? 1 : 1 - Math.pow(2, -10 * percentage);
+      
+      setCount(Math.floor(value * ease));
+
+      if (percentage < 1) {
+        animationFrame = requestAnimationFrame(animate);
+      }
+    };
+
+    if (value > 0) {
+      animationFrame = requestAnimationFrame(animate);
+    } else {
+      setCount(0);
+    }
+
+    return () => cancelAnimationFrame(animationFrame);
+  }, [value, duration]);
+
+  return <span>{count.toLocaleString()}</span>;
+};
 
 export default function Home() {
   const { user } = useAuth();
+  
+  // --- REAL METRICS STATE ---
+  const [impactStats, setImpactStats] = useState({
+    mealsShared: 0,
+    activeUsers: 0,
+    foodSavedKg: 0,
+    livesTouched: 0
+  });
+  const [isLoadingStats, setIsLoadingStats] = useState(true);
+
+  // Fetch aggregated data from your analytics document
+  useEffect(() => {
+    async function fetchRealMetrics() {
+      try {
+        const snap = await getDoc(doc(db, "analytics", "dashboard_chart"));
+        if (snap.exists()) {
+          const data = snap.data().impact || {};
+          setImpactStats({
+            mealsShared: data.totalMeals || 0,
+            activeUsers: data.totalRegisteredUsers || 0,
+            foodSavedKg: data.wastePreventedKg || 0,
+            livesTouched: data.uniquePeople || 0
+          });
+        }
+      } catch (error) {
+        console.error("Failed to load impact stats for homepage:", error);
+      } finally {
+        setIsLoadingStats(false);
+      }
+    }
+    
+    fetchRealMetrics();
+  }, []);
 
   return (
     <div className="relative overflow-hidden -mt-4 pb-12 flex flex-col min-h-screen">
@@ -35,7 +117,7 @@ export default function Home() {
 
           {!user ? (
             <div className="flex flex-col sm:flex-row gap-3 justify-center pt-4">
-              <Button asChild size="lg" className="w-full sm:w-auto bg-violet-600 hover:bg-violet-700 h-14 px-8 rounded-full shadow-lg shadow-violet-500/25 text-base transition-all">
+              <Button asChild size="lg" className="w-full sm:w-auto bg-violet-600 hover:bg-violet-700 h-14 px-8 rounded-full shadow-lg shadow-violet-500/25 text-base text-white transition-all">
                 <Link to="/register">Get Started</Link>
               </Button>
               <Button asChild variant="outline" size="lg" className="w-full sm:w-auto h-14 px-8 rounded-full bg-white/80 backdrop-blur border-violet-200 text-violet-700 hover:bg-violet-50 text-base transition-all">
@@ -44,7 +126,7 @@ export default function Home() {
             </div>
           ) : (
             <div className="pt-4">
-              <Button asChild size="lg" className="bg-violet-600 hover:bg-violet-700 h-14 px-8 rounded-full shadow-lg shadow-violet-500/25 text-base w-full sm:w-auto transition-all">
+              <Button asChild size="lg" className="bg-violet-600 hover:bg-violet-700 h-14 px-8 rounded-full shadow-lg shadow-violet-500/25 text-base text-white w-full sm:w-auto transition-all">
                 <Link to="/donations">Go to Feed <ArrowRight className="ml-2 h-5 w-5" /></Link>
               </Button>
             </div>
@@ -95,37 +177,64 @@ export default function Home() {
           </div>
         </section>
 
-        {/* --- IMPACT STATS SECTION --- */}
+        {/* --- IMPACT STATS SECTION (Now Live!) --- */}
         <section className="bg-gradient-to-br from-violet-600 to-purple-700 text-white py-12 rounded-[2rem] mx-2 shadow-xl border border-violet-400/30">
           <div className="max-w-4xl mx-auto px-4 text-center">
             <h2 className="text-2xl font-bold mb-10 text-violet-50 flex items-center justify-center gap-2">
               <Heart className="w-6 h-6 text-fuchsia-300 fill-fuchsia-300" /> Community Impact
             </h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-y-10 gap-x-4">
-              <div className="space-y-1">
-                <div className="text-4xl font-extrabold tracking-tight text-white">500+</div>
-                <div className="text-violet-200 text-xs font-semibold uppercase tracking-wider">Meals Shared</div>
+            
+            {isLoadingStats ? (
+              <div className="flex justify-center items-center h-24">
+                <Loader2 className="w-8 h-8 animate-spin text-fuchsia-300" />
               </div>
-              <div className="space-y-1">
-                <div className="text-4xl font-extrabold tracking-tight text-white">150+</div>
-                <div className="text-violet-200 text-xs font-semibold uppercase tracking-wider">Active Donors</div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-y-10 gap-x-4">
+                <div className="space-y-1">
+                  <div className="text-4xl font-extrabold tracking-tight text-white flex justify-center">
+                    <AnimatedCounter value={impactStats.mealsShared} />
+                  </div>
+                  <div className="text-violet-200 text-[10px] sm:text-xs font-semibold uppercase tracking-wider">Meals Shared</div>
+                </div>
+                <div className="space-y-1">
+                  <div className="text-4xl font-extrabold tracking-tight text-white flex justify-center">
+                    <AnimatedCounter value={impactStats.activeUsers} />
+                  </div>
+                  <div className="text-violet-200 text-[10px] sm:text-xs font-semibold uppercase tracking-wider">Registered Users</div>
+                </div>
+                <div className="space-y-1">
+                  <div className="text-4xl font-extrabold tracking-tight text-fuchsia-300 flex justify-center">
+                    <AnimatedCounter value={impactStats.foodSavedKg} />
+                  </div>
+                  <div className="text-violet-200 text-[10px] sm:text-xs font-semibold uppercase tracking-wider">Kg Food Saved</div>
+                </div>
+                <div className="space-y-1">
+                  <div className="text-4xl font-extrabold tracking-tight text-fuchsia-300 flex justify-center">
+                    <AnimatedCounter value={impactStats.livesTouched} />
+                  </div>
+                  <div className="text-violet-200 text-[10px] sm:text-xs font-semibold uppercase tracking-wider">Lives Touched</div>
+                </div>
               </div>
-              <div className="space-y-1">
-                <div className="text-4xl font-extrabold tracking-tight text-fuchsia-300">1,200+</div>
-                <div className="text-violet-200 text-xs font-semibold uppercase tracking-wider">Kg Food Saved</div>
-              </div>
-              <div className="space-y-1">
-                <div className="text-4xl font-extrabold tracking-tight text-fuchsia-300">12</div>
-                <div className="text-violet-200 text-xs font-semibold uppercase tracking-wider">Communities</div>
-              </div>
-            </div>
+            )}
           </div>
+        </section>
+
+        {/* --- HELPDESK SECTION --- */}
+        <section className="text-center pt-8 pb-4">
+          <h3 className="text-lg font-bold text-slate-900 mb-2">Need Help?</h3>
+          <p className="text-sm text-slate-600 mb-4">If you face any problems, feel free to contact our support team.</p>
+          <Button asChild variant="outline" className="rounded-full border-violet-200 text-violet-700 hover:bg-violet-50 bg-white/80 backdrop-blur shadow-sm transition-all">
+            <a href="mailto:kindbite@gmail.com">
+              <Mail className="w-4 h-4 mr-2" />
+              Contact Helpdesk
+            </a>
+          </Button>
         </section>
 
       </div>
 
       {/* --- MINI FOOTER --- */}
-      <footer className="mt-16 text-center pb-6 text-slate-500 text-sm">
+      <footer className="mt-8 text-center pb-6 text-slate-500 text-sm">
         <p>© {new Date().getFullYear()} KindBite. Developed for USM Final Year Project.</p>
       </footer>
     </div>

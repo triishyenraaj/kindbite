@@ -1,7 +1,7 @@
 # KindBite | Smart Food Rescue & Donation Management System
 **PIXEL 2026 Silver Medalist – Universiti Sains Malaysia**
 
-**🎥 [Watch the System Demo Here](https://drive.google.com/file/d/15boanTFBgwYEbQvR0Jnw1tdwJZ_Myu5t/view?usp=drive_link)** | **📊 [View Final Presentation Slides]]([docs/CAT404_Final_Report_163643_Triishyen.pdf](https://drive.google.com/file/d/1DwykubTYutKjfNQFSUsHEgEE1izBXsf6/view?usp=sharing))**
+**🎥 [Watch the System Demo Here](https://drive.google.com/file/d/15boanTFBgwYEbQvR0Jnw1tdwJZ_Myu5t/view?usp=drive_link)** | **📊 [View Final Presentation Slides](https://drive.google.com/file/d/1DwykubTYutKjfNQFSUsHEgEE1izBXsf6/view?usp=sharing)**
 
 ### Project Overview
 KindBite is a serverless, peer-to-peer web application designed to bridge the gap between surplus food generation and food insecurity. Operating on a dual-flow model, the platform empowers donors to list surplus food and recipients to broadcast specific needs without relying on centralized warehousing.

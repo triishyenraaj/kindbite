@@ -23,4 +23,3 @@ KindBite is a serverless, peer-to-peer web application designed to bridge the ga
 
 ### System Previews
 ![Map Discovery View](docs/map-view-screenshot.png)
-*(Note: Be sure to upload your screenshots to a `docs` folder in your repository and update this image filename to match)*
